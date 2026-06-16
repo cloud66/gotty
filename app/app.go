@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"net"
@@ -23,9 +22,9 @@ import (
 	"time"
 
 	"github.com/braintree/manners"
+	"github.com/creack/pty"
 	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/websocket"
-	"github.com/kr/pty"
 	"github.com/yudai/hcl"
 	"github.com/yudai/umutex"
 )
@@ -80,7 +79,7 @@ type Options struct {
 	Height              int                    `hcl:"height"`
 }
 
-var Version = "1.0.0"
+var Version = "1.0.1"
 
 var DefaultOptions = Options{
 	Address:             "",
@@ -140,7 +139,7 @@ func ApplyConfigFile(options *Options, filePath string) error {
 
 	fileString := []byte{}
 	log.Printf("Loading config file at: %s", filePath)
-	fileString, err := ioutil.ReadFile(filePath)
+	fileString, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
@@ -161,11 +160,11 @@ func CheckConfig(options *Options) error {
 
 func (app *App) Run() error {
 	if app.options.PermitWrite {
-		log.Printf("Permitting clients to write input to the PTY.")
+		log.Print("Permitting clients to write input to the PTY.")
 	}
 
 	if app.options.Once {
-		log.Printf("Once option is provided, accepting only one client")
+		log.Print("Once option is provided, accepting only one client")
 	}
 
 	path := ""
@@ -185,7 +184,7 @@ func (app *App) Run() error {
 	var siteMux = http.NewServeMux()
 
 	if app.options.IndexFile != "" {
-		log.Printf("Using index file at " + app.options.IndexFile)
+		log.Print("Using index file at " + app.options.IndexFile)
 		siteMux.Handle(path+"/", customIndexHandler)
 	} else {
 		siteMux.Handle(path+"/", http.StripPrefix(path+"/", staticHandler))
@@ -197,7 +196,7 @@ func (app *App) Run() error {
 	siteHandler := http.Handler(siteMux)
 
 	if app.options.EnableBasicAuth {
-		log.Printf("Using Basic Authentication")
+		log.Print("Using Basic Authentication")
 		siteHandler = wrapBasicAuth(siteHandler, app.options.Credential)
 	}
 
@@ -255,8 +254,8 @@ func (app *App) Run() error {
 	if app.options.EnableTLS {
 		crtFile := ExpandHomeDir(app.options.TLSCrtFile)
 		keyFile := ExpandHomeDir(app.options.TLSKeyFile)
-		log.Printf("TLS crt file: " + crtFile)
-		log.Printf("TLS key file: " + keyFile)
+		log.Print("TLS crt file: " + crtFile)
+		log.Print("TLS key file: " + keyFile)
 
 		err = app.server.ListenAndServeTLS(crtFile, keyFile)
 	} else {
@@ -266,7 +265,7 @@ func (app *App) Run() error {
 		return err
 	}
 
-	log.Printf("Exiting...")
+	log.Print("Exiting...")
 
 	return nil
 }
@@ -279,8 +278,8 @@ func (app *App) makeServer(addr string, handler *http.Handler) (*http.Server, er
 
 	if app.options.EnableTLSClientAuth {
 		caFile := ExpandHomeDir(app.options.TLSCACrtFile)
-		log.Printf("CA file: " + caFile)
-		caCert, err := ioutil.ReadFile(caFile)
+		log.Print("CA file: " + caFile)
+		caCert, err := os.ReadFile(caFile)
 		if err != nil {
 			return nil, errors.New("Could not open CA crt file " + caFile)
 		}
@@ -373,10 +372,10 @@ func (app *App) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	if app.options.Once {
 		if app.onceMutex.TryLock() { // no unlock required, it will die soon
-			log.Printf("Last client accepted, closing the listener.")
+			log.Print("Last client accepted, closing the listener.")
 			app.server.Close()
 		} else {
-			log.Printf("Server is already closing.")
+			log.Print("Server is already closing.")
 			conn.Close()
 			return
 		}
@@ -422,7 +421,7 @@ func (app *App) Exit() (firstCall bool) {
 	if app.server != nil {
 		firstCall = app.server.Close()
 		if firstCall {
-			log.Printf("Received Exit command, waiting for all clients to close sessions...")
+			log.Print("Received Exit command, waiting for all clients to close sessions...")
 		}
 		return firstCall
 	}

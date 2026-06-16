@@ -1,0 +1,22 @@
+# build gate: every push/PR must format-check, vet, and compile on a current Go.
+# replaces the defunct wercker pipeline (wercker.yml).
+name: ci
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # 'stable' always pulls the latest patched Go release, which is the
+          # whole point of this modernization: the binary embeds a current,
+          # non-vulnerable Go toolchain.
+          go-version: 'stable'
+      - name: gofmt, vet, build
+        run: make test

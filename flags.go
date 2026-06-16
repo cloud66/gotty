@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/codegangsta/cli"
 	"github.com/fatih/structs"
+	"github.com/urfave/cli"
 
-	"github.com/yudai/gotty/app"
+	"github.com/cloud66/gotty/app"
 )
 
 type flag struct {

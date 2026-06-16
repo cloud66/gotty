@@ -30,10 +30,10 @@ $ brew install yudai/gotty/gotty
 
 ## `go get` Installation (Development)
 
-If you have a Go language environment, you can install GoTTY with the `go get` command. However, this command builds a binary file from the latest master branch, which can include unstable or breaking changes.
+If you have a Go language environment (Go 1.23+), you can install GoTTY with the `go install` command. However, this builds a binary from the latest master branch, which can include unstable or breaking changes.
 
 ```sh
-$ go get github.com/yudai/gotty
+$ go install github.com/cloud66/gotty@latest
 ```
 
 # Usage
@@ -148,22 +148,19 @@ $ gotty -w docker run -it --rm busybox
 
 ## Development
 
-You can build a binary using the following commands. Windows is not supported now.
+You can build a binary using the following commands. Requires Go 1.23 or newer. Windows is not supported now.
 
 ```sh
-# Install tools
-go get github.com/jteeuwen/go-bindata/...
-go get github.com/tools/godep
-
-# Checkout hterm
-git submodule sync && git submodule update --init --recursive
-
-# Restore libraries in Godeps
-godep restore
-
-# Build
+# Build (uses the committed go.mod and vendor/ — no extra tools needed)
 make
+
+# ...or build directly
+go build .
 ```
+
+The web assets (hterm.js, gotty.js, index.html, favicon) are pre-generated and
+committed in `app/resource.go`. They are no longer rebuilt at build time, so
+`go-bindata` and the hterm (`libapps`) submodule are not required to build.
 
 ## Architecture
 

@@ -1,0 +1,34 @@
+# release: on a version tag (e.g. v1.0.1), build the linux/amd64 tarball that
+# cloud66/central installs from S3 and attach it to a GitHub Release.
+name: release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      # produces builds/gotty_linux_amd64_<version>.tar.gz (executable only)
+      - name: build linux/amd64 tarball
+        run: make dist
+      - name: attach tarball to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/gotty_linux_amd64_*.tar.gz
+      # optional: publish to the bucket central's installer downloads from.
+      # only runs when AWS credentials are configured as repo secrets.
+      - name: upload to downloads.cloud66.com (optional)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        if: env.AWS_ACCESS_KEY_ID != ''
+        run: aws s3 cp builds/gotty_linux_amd64_*.tar.gz s3://downloads.cloud66.com/gotty/

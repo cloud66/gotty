@@ -100,7 +100,7 @@ func (context *clientContext) goHandleClient() {
 
 func (context *clientContext) processSend() {
 	if err := context.sendInitialize(); err != nil {
-		log.Printf(err.Error())
+		log.Print(err.Error())
 		return
 	}
 
@@ -114,7 +114,7 @@ func (context *clientContext) processSend() {
 		}
 		safeMessage := base64.StdEncoding.EncodeToString([]byte(buf[:size]))
 		if err = context.write(append([]byte{Output}, []byte(safeMessage)...)); err != nil {
-			log.Printf(err.Error())
+			log.Print(err.Error())
 			return
 		}
 	}
