@@ -1,54 +1,42 @@
-OUTPUT_DIR = ./builds
+# gotty build — modern Go modules flow (replaces the old godep / go-bindata setup).
+# web assets are pre-generated and committed in app/resource.go (Code generated, DO NOT EDIT),
+# so they are not rebuilt here: the libapps submodule and go-bindata are no longer required.
 
-gotty: app/resource.go main.go app/*.go
-	godep go build
+# single source of truth for the version is the Version var in app/app.go
+VERSION := $(shell grep -oE 'Version = "[0-9][^"]*"' app/app.go | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+# cloud66/central's installer fetches the tarball with dots replaced by underscores
+VERSION_US := $(subst .,_,$(VERSION))
 
-resource:  app/resource.go
+OUTPUT_DIR := ./builds
+# hand-written Go files only — exclude vendored deps and the generated bindata file
+GOFILES := $(shell find . -name '*.go' -not -path './vendor/*' -not -name 'resource.go')
 
-app/resource.go: bindata/static/js/hterm.js bindata/static/js/gotty.js  bindata/static/index.html bindata/static/favicon.png
-	go-bindata -prefix bindata -pkg app -ignore=\\.gitkeep -o app/resource.go bindata/...
-	gofmt -w app/resource.go
+# default target: build a local binary for the host platform
+gotty: $(GOFILES) go.mod
+	go build -o gotty .
 
-bindata:
-	mkdir bindata
-
-bindata/static: bindata
-	mkdir bindata/static
-
-bindata/static/index.html: bindata/static resources/index.html
-	cp resources/index.html bindata/static/index.html
-
-bindata/static/favicon.png: bindata/static resources/favicon.png
-	cp resources/favicon.png bindata/static/favicon.png
-
-bindata/static/js: bindata/static
-	mkdir -p bindata/static/js
-
-bindata/static/js/hterm.js: bindata/static/js libapps/hterm/js/*.js
-	cd libapps && \
-	LIBDOT_SEARCH_PATH=`pwd` ./libdot/bin/concat.sh -i ./hterm/concat/hterm_all.concat -o ../bindata/static/js/hterm.js
-
-bindata/static/js/gotty.js: bindata/static/js resources/gotty.js
-	cp resources/gotty.js bindata/static/js/gotty.js
-
-tools:
-	go get github.com/tools/godep
-	go get github.com/mitchellh/gox
-	go get github.com/tcnksm/ghr
-	go get github.com/jteeuwen/go-bindata/...
-
+# CI gate: formatting, vet, and a full build must all pass
 test:
-	if [ `go fmt $(go list ./... | grep -v /vendor/) | wc -l` -gt 0 ]; then echo "go fmt error"; exit 1; fi
+	@unformatted=$$(gofmt -l $(GOFILES)); \
+	if [ -n "$$unformatted" ]; then echo "gofmt needed on:"; echo "$$unformatted"; exit 1; fi
+	go vet ./...
+	go build ./...
 
-cross_compile:
-	GOARM=5 gox -os="darwin linux freebsd netbsd openbsd" -arch="386 amd64 arm" -osarch="!darwin/arm" -output "${OUTPUT_DIR}/pkg/{{.OS}}_{{.Arch}}/{{.Dir}}"
+# rewrite any unformatted hand-written files in place
+fmt:
+	gofmt -w $(GOFILES)
 
-targz:
-	mkdir -p ${OUTPUT_DIR}/dist
-	cd ${OUTPUT_DIR}/pkg/; for osarch in *; do (cd $$osarch; tar zcvf ../../dist/gotty_$$osarch.tar.gz ./*); done;
+# build the linux/amd64 release artifact that central installs from S3.
+# CGO is disabled so the binary is static and runs across all supported Ubuntu releases.
+# output: builds/gotty_linux_amd64_<version>.tar.gz containing only the gotty executable.
+dist:
+	mkdir -p $(OUTPUT_DIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(OUTPUT_DIR)/gotty .
+	tar -czf $(OUTPUT_DIR)/gotty_linux_amd64_$(VERSION_US).tar.gz -C $(OUTPUT_DIR) gotty
+	@echo "built $(OUTPUT_DIR)/gotty_linux_amd64_$(VERSION_US).tar.gz (version $(VERSION))"
 
-shasums:
-	cd ${OUTPUT_DIR}/dist; sha256sum * > ./SHA256SUMS
+clean:
+	rm -f gotty
+	rm -rf $(OUTPUT_DIR)
 
-release:
-	ghr --delete --prerelease -u yudai -r gotty pre-release ${OUTPUT_DIR}/dist
+.PHONY: test fmt dist clean

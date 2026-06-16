@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
-	"github.com/yudai/gotty/app"
+	"github.com/cloud66/gotty/app"
 )
 
 func main() {
@@ -69,7 +69,7 @@ func main() {
 
 	cmd.Action = func(c *cli.Context) {
 		if len(c.Args()) == 0 {
-			fmt.Println("Error: No command given.\n")
+			fmt.Println("Error: No command given.")
 			cli.ShowAppHelp(c)
 			exit(err, 1)
 		}
