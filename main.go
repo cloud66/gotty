@@ -11,9 +11,25 @@ import (
 	"github.com/cloud66/gotty/app"
 )
 
+// injected at build time by GoBob via -ldflags "-X main.VERSION=... -X main.BUILDDATE=...".
+// empty for a plain `go build`/`go install`, where the version baked into app.Version is used.
+var (
+	VERSION   string
+	BUILDDATE string
+)
+
 func main() {
+	// when built through GoBob, prefer the injected version over the hard-coded default
+	if VERSION != "" {
+		app.Version = VERSION
+	}
+
 	cmd := cli.NewApp()
 	cmd.Version = app.Version
+	// released binaries also carry the build date so `gotty --version` is traceable
+	if BUILDDATE != "" {
+		cmd.Version = app.Version + " (" + BUILDDATE + ")"
+	}
 	cmd.Name = "gotty"
 	cmd.Usage = "Share your terminal as a web application"
 	cmd.HideHelp = true
