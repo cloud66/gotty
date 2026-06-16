@@ -1,15 +1,16 @@
-# gotty build — modern Go modules flow (replaces the old godep / go-bindata setup).
-# web assets are pre-generated and committed in app/resource.go (Code generated, DO NOT EDIT),
-# so they are not rebuilt here: the libapps submodule and go-bindata are no longer required.
+# gotty build.
+# Local builds use the stock Go toolchain (`make` / `go build`). Release builds and
+# publishing to S3 are handled by GoBob (cloud66's centralized build/publish tool) via
+# the `gobob` target below. Web assets are pre-generated and committed in app/resource.go
+# (Code generated, DO NOT EDIT), so go-bindata and the old libapps submodule aren't needed.
 
-# single source of truth for the version is the Version var in app/app.go
-VERSION := $(shell grep -oE 'Version = "[0-9][^"]*"' app/app.go | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-# cloud66/central's installer fetches the tarball with dots replaced by underscores
-VERSION_US := $(subst .,_,$(VERSION))
-
-OUTPUT_DIR := ./builds
 # hand-written Go files only — exclude vendored deps and the generated bindata file
 GOFILES := $(shell find . -name '*.go' -not -path './vendor/*' -not -name 'resource.go')
+# version is the single source of truth in app/app.go; GoBob stamps it into the binary
+VERSION := $(shell grep -oE 'Version = "[0-9][^"]*"' app/app.go | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+BRANCH  := $(shell git rev-parse --abbrev-ref HEAD)
+# gotty needs a pty, so it is unix-only: exclude GoBob's default windows/* targets
+GOBOB_TARGETS := darwin/arm64,darwin/amd64,linux/386,linux/amd64,linux/arm,linux/arm64
 
 # default target: build a local binary for the host platform
 gotty: $(GOFILES) go.mod
@@ -26,17 +27,14 @@ test:
 fmt:
 	gofmt -w $(GOFILES)
 
-# build the linux/amd64 release artifact that central installs from S3.
-# CGO is disabled so the binary is static and runs across all supported Ubuntu releases.
-# output: builds/gotty_linux_amd64_<version>.tar.gz containing only the gotty executable.
-dist:
-	mkdir -p $(OUTPUT_DIR)
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(OUTPUT_DIR)/gotty .
-	tar -czf $(OUTPUT_DIR)/gotty_linux_amd64_$(VERSION_US).tar.gz -C $(OUTPUT_DIR) gotty
-	@echo "built $(OUTPUT_DIR)/gotty_linux_amd64_$(VERSION_US).tar.gz (version $(VERSION))"
+# cross-compile every supported release target via GoBob (build only — no S3 upload).
+# GoBob builds from committed state, so this needs a clean, pushed branch. To publish:
+#   gobob build+push -t '$(GOBOB_TARGETS)' -v $(VERSION) -b $(BRANCH)
+#   gobob publish -v $(VERSION)
+gobob:
+	gobob build -t '$(GOBOB_TARGETS)' -v $(VERSION) -b $(BRANCH)
 
 clean:
 	rm -f gotty
-	rm -rf $(OUTPUT_DIR)
 
-.PHONY: test fmt dist clean
+.PHONY: test fmt gobob clean
